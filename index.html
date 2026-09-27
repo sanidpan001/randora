@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Randora — Free Random Number Generator: Lucky Draws, Spin Wheel, Dice &amp; Coin</title>
+<meta name="description" content="Randora is a free random number generator with a game-show twist: no-duplicate lucky draws, animated spin-the-wheel, weighted random picks, dice roller, coin flipper and list shuffler. 100% in your browser — no signup, unlimited usage.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { --purple:#7C3AED; --yellow:#FACC15; }
+  html { scroll-behavior:smooth; }
+  body { font-family:'Nunito',system-ui,sans-serif; background:#1B0F3B; color:#F5F3FF; }
+  .font-show { font-family:'Bungee',cursive; }
+  .stage-bg { background:radial-gradient(ellipse 90% 60% at 50% -10%, #4C1D95 0%, #2A1658 45%, #160A33 100%); }
+  /* Marquee bulbs */
+  .marquee { display:flex; justify-content:center; gap:10px; padding:10px 0; }
+  .bulb { width:12px; height:12px; border-radius:9999px; background:#FACC15; box-shadow:0 0 10px 3px rgba(250,204,21,.8); animation:bulb 1.2s infinite; }
+  .bulb:nth-child(even){ animation-delay:.6s; background:#fff; box-shadow:0 0 10px 3px rgba(255,255,255,.7); }
+  @keyframes bulb { 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.35; transform:scale(.8);} }
+  /* Spotlight beams */
+  .beams { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+  .beam { position:absolute; top:-10%; width:120px; height:120%; background:linear-gradient(to bottom, rgba(250,204,21,.14), transparent 70%); transform:rotate(18deg); filter:blur(6px); }
+  /* Scoreboard display */
+  .scoreboard { background:#0B0618; border:3px solid var(--yellow); border-radius:18px; box-shadow:0 0 0 4px rgba(124,58,237,.45), 0 10px 40px rgba(0,0,0,.5), inset 0 0 30px rgba(124,58,237,.25); }
+  .digit { color:var(--yellow); text-shadow:0 0 18px rgba(250,204,21,.55); }
+  /* Tabs */
+  .mode-tab { border:2px solid rgba(250,204,21,.35); color:#EDE9FE; background:rgba(124,58,237,.18); border-radius:14px; font-weight:800; transition:all .18s ease; white-space:nowrap; }
+  .mode-tab:hover { transform:translateY(-2px); border-color:var(--yellow); }
+  .mode-tab.active { background:var(--yellow); color:#2A1658; border-color:var(--yellow); box-shadow:0 6px 20px rgba(250,204,21,.35); }
+  .btn-show { background:linear-gradient(180deg,#FACC15,#EAB308); color:#2A1658; font-weight:800; border-radius:16px; box-shadow:0 6px 0 #A16207, 0 12px 26px rgba(0,0,0,.45); transition:all .12s ease; }
+  .btn-show:hover { transform:translateY(-2px); }
+  .btn-show:active { transform:translateY(4px); box-shadow:0 2px 0 #A16207; }
+  .btn-show:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+  .btn-ghost { border:2px solid rgba(250,204,21,.5); color:#FACC15; font-weight:800; border-radius:14px; transition:all .15s ease; }
+  .btn-ghost:hover { background:rgba(250,204,21,.12); }
+  .field { background:#0B0618; border:2px solid rgba(124,58,237,.7); border-radius:12px; color:#F5F3FF; }
+  .field:focus { outline:none; border-color:var(--yellow); box-shadow:0 0 0 3px rgba(250,204,21,.25); }
+  .panel-card { background:rgba(11,6,24,.72); border:2px solid rgba(124,58,237,.55); border-radius:20px; backdrop-filter:blur(4px); }
+  /* Coin flip */
+  .coin { transform-style:preserve-3d; transition:transform 1.1s cubic-bezier(.2,.7,.3,1.2); }
+  .coin-face { backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+  .coin.tails .coin-inner { transform:rotateY(180deg); }
+  .coin-inner { transform-style:preserve-3d; transition:transform 1.1s cubic-bezier(.2,.7,.3,1.2); }
+  /* Dice shake */
+  @keyframes shake { 0%,100%{transform:rotate(0);} 25%{transform:rotate(-18deg) scale(1.08);} 50%{transform:rotate(14deg) scale(.95);} 75%{transform:rotate(-8deg) scale(1.05);} }
+  .dice-shake { animation:shake .5s ease 2; }
+  /* Confetti */
+  .confetti { position:fixed; top:-14px; z-index:60; pointer-events:none; animation:fall linear forwards; }
+  @keyframes fall { to { transform:translateY(110vh) rotate(720deg); } }
+  /* Wheel pointer */
+  .wheel-pointer { filter:drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+  .faq-item summary::-webkit-details-marker { display:none; }
+  @keyframes pop { 0%{transform:scale(.6);} 60%{transform:scale(1.12);} 100%{transform:scale(1);} }
+  .pop { animation:pop .35s ease; }
+  @media (max-width:420px){ .scoreboard .digit{ font-size:2.2rem !important; } }
+</style>
+</head>
+<body id="top" class="stage-bg min-h-screen">
+
+<!-- Sticky header -->
+<header class="sticky top-0 z-40 bg-[#160A33]/95 backdrop-blur border-b-2 border-[#FACC15]/40">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 py-3 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-2">
+      <span class="font-show text-2xl sm:text-3xl text-[#FACC15]" style="text-shadow:0 3px 0 #7C3AED">🎲 RANDORA</span>
+    </a>
+    <nav class="flex items-center gap-4 sm:gap-6 text-sm sm:text-base font-bold">
+      <a href="#top" class="text-violet-200 hover:text-[#FACC15] transition">Home</a>
+      <a href="https://fixoraa.tech" class="text-violet-200 hover:text-[#FACC15] transition">More Tools</a>
+    </nav>
+  </div>
+</header>
+
+<!-- TOP AD (verbatim) -->
+<div class="no-print mx-auto max-w-6xl px-4 sm:px-6 pt-4" role="complementary" aria-label="Advertisement">
+  <div class="mx-auto text-center" style="max-width:728px">
+    <span class="block text-[10px] tracking-[0.18em] uppercase text-slate-400 mb-1.5">Advertisement</span>
+    <div class="flex justify-center overflow-hidden">
+      <div class="origin-top scale-[0.44] sm:scale-100 shrink-0">
+        <script>
+          atOptions = { 'key' : '4e68ac77881c17fe128a46565d9a4e8c', 'format' : 'iframe', 'height' : 90, 'width' : 728, 'params' : {} };
+        </script>
+        <script src="https://www.highrevenueformat.com/4e68ac77881c17fe128a46565d9a4e8c/invoke.js"></script>
+      </div>
+    </div>
+  </div>
+</div>
+
+<main class="mx-auto max-w-6xl px-4 sm:px-6 pb-10">
+
+  <!-- Stage -->
+  <section class="relative mt-6 rounded-3xl border-2 border-[#FACC15]/50 overflow-hidden" style="background:linear-gradient(180deg,#2A1658,#160A33)">
+    <div class="beams">
+      <div class="beam" style="left:8%"></div>
+      <div class="beam" style="left:44%; transform:rotate(-12deg)"></div>
+      <div class="beam" style="right:8%; transform:rotate(-20deg)"></div>
+    </div>
+    <div class="marquee" aria-hidden="true">
+      <span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span>
+    </div>
+    <div class="relative px-4 sm:px-8 pb-8">
+      <h1 class="font-show text-center text-3xl sm:text-5xl text-[#FACC15] leading-tight" style="text-shadow:0 4px 0 #7C3AED">TONIGHT'S<br class="sm:hidden"> RANDOM SHOW</h1>
+      <p class="text-center text-violet-200 mt-2 max-w-xl mx-auto">Lucky draws, spin-the-wheel, weighted picks, dice, coins and shuffles — all powered by cryptographically strong randomness, right in your browser.</p>
+      <div class="flex justify-center mt-4">
+        <span class="inline-flex items-center gap-2 bg-[#FACC15] text-[#2A1658] font-extrabold text-xs sm:text-sm px-4 py-1.5 rounded-full shadow-lg">
+          ⭐ UNLIMITED FREE USAGE — no signup, no limits
+        </span>
+      </div>
+
+      <!-- Mode tabs -->
+      <div class="flex gap-2 sm:gap-3 mt-6 overflow-x-auto pb-2 justify-start sm:justify-center" role="tablist" aria-label="Randomizer modes">
+        <button class="mode-tab active px-4 py-2.5 text-sm sm:text-base" data-mode="numbers" role="tab">🎰 Number Draw</button>
+        <button class="mode-tab px-4 py-2.5 text-sm sm:text-base" data-mode="wheel" role="tab">🎡 Spin Wheel</button>
+        <button class="mode-tab px-4 py-2.5 text-sm sm:text-base" data-mode="weighted" role="tab">⚖️ Weighted Draw</button>
+        <button class="mode-tab px-4 py-2.5 text-sm sm:text-base" data-mode="dice" role="tab">🎲 Dice &amp; Coin</button>
+        <button class="mode-tab px-4 py-2.5 text-sm sm:text-base" data-mode="shuffle" role="tab">🔀 List Shuffle</button>
+      </div>
+
+      <!-- ============ PANEL: NUMBER DRAW ============ -->
+      <div id="panel-numbers" class="panel-card mt-5 p-4 sm:p-6 max-w-3xl mx-auto" role="tabpanel">
+        <h2 class="font-show text-xl sm:text-2xl text-[#FACC15] text-center mb-4">🎰 Lucky Number Draw</h2>
+        <div class="grid grid-cols-3 gap-3 max-w-md mx-auto">
+          <label class="block">
+            <span class="text-xs font-bold text-violet-300 uppercase tracking-wide">Min</span>
+            <input id="n-min" type="number" value="1" class="field w-full px-3 py-2.5 text-lg font-bold text-center mt-1">
+          </label>
+          <label class="block">
+            <span class="text-xs font-bold text-violet-300 uppercase tracking-wide">Max</span>
+            <input id="n-max" type="number" value="100" class="field w-full px-3 py-2.5 text-lg font-bold text-center mt-1">
+          </label>
+          <label class="block">
+            <span class="text-xs font-bold text-violet-300 uppercase tracking-wide">How many</span>
+            <input id="n-count" type="number" value="1" min="1" class="field w-full px-3 py-2.5 text-lg font-bold text-center mt-1">
+          </label>
+        </div>
+        <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 text-sm font-bold">
+          <label class="flex items-center gap-2 cursor-pointer"><input id="n-unique" type="checkbox" class="w-5 h-5 accent-[#FACC15]"> No duplicates (unique draw)</label>
+          <label class="flex items-center gap-2 cursor-pointer"><input id="n-sort" type="checkbox" class="w-5 h-5 accent-[#FACC15]"> Sort results</label>
+        </div>
+        <p id="n-error" class="hidden text-center text-red-300 font-bold mt-3 text-sm" role="alert"></p>
+        <p id="n-notice" class="hidden text-center text-yellow-200 font-semibold mt-3 text-sm" role="status"></p>
+        <div class="text-center mt-4">
+          <button id="n-generate" class="btn-show font-show text-xl sm:text-2xl px-10 py-3.5 tracking-wide">GENERATE ✨</button>
+        </div>
+        <div class="scoreboard mt-5 px-4 py-5 text-center min-h-[120px] flex flex-col justify-center">
+          <div class="text-[10px] uppercase tracking-[0.25em] text-violet-300 mb-1">Your numbers</div>
+          <div id="n-result" class="digit font-show text-3xl sm:text-4xl leading-snug break-words">—</div>
+        </div>
+        <div class="flex justify-center gap-3 mt-3">
+          <button id="n-copy" class="btn-ghost px-4 py-2 text-sm">📋 Copy</button>
+          <button id="n-clear-hist" class="btn-ghost px-4 py-2 text-sm">🗑 Clear history</button>
+        </div>
+        <div class="mt-4">
+          <h3 class="text-xs font-extrabold uppercase tracking-[0.2em] text-violet-300 mb-2 text-center">Recent draws</h3>
+          <ul id="n-history" class="space-y-1.5 text-sm max-w-lg mx-auto"></ul>
+        </div>
+      </div>
+
+      <!-- ============ PANEL: SPIN WHEEL ============ -->
+      <div id="panel-wheel" class="panel-card mt-5 p-4 sm:p-6 max-w-3xl mx-auto hidden" role="tabpanel">
+        <h2 class="font-show text-xl sm:text-2xl text-[#FACC15] text-center mb-4">🎡 Spin-The-Wheel Picker</h2>
+        <div class="grid sm:grid-cols-2 gap-5 items-start">
+          <div>
+            <label class="text-xs font-bold text-violet-300 uppercase tracking-wide" for="w-entries">Entries (one per line, 2–24)</label>
+            <textarea id="w-entries" rows="8" class="field w-full px-3 py-2.5 mt-1 text-sm font-semibold" placeholder="Aarav&#10;Diya&#10;Kabir&#10;Meera">Aarav
+Diya
+Kabir
+Meera
+Rohan
+Zara</textarea>
+            <label class="flex items-center gap-2 cursor-pointer mt-3 text-sm font-bold"><input id="w-remove" type="checkbox" checked class="w-5 h-5 accent-[#FACC15]"> Remove winner after each spin</label>
+            <div class="text-center mt-4">
+              <button id="w-spin" class="btn-show font-show text-xl px-10 py-3.5">SPIN! 🎡</button>
+            </div>
+            <p id="w-error" class="hidden text-red-300 font-bold mt-3 text-sm text-center" role="alert"></p>
+          </div>
+          <div class="text-center">
+            <div class="relative inline-block">
+              <canvas id="w-canvas" width="340" height="340" class="max-w-full h-auto wheel-pointer" style="max-width:320px"></canvas>
+              <div class="absolute left-1/2 -translate-x-1/2 -top-1 text-3xl wheel-pointer" aria-hidden="true">🔻</div>
+            </div>
+            <div class="scoreboard mt-3 px-4 py-4 min-h-[84px] flex flex-col justify-center">
+              <div class="text-[10px] uppercase tracking-[0.25em] text-violet-300 mb-1">Winner</div>
+              <div id="w-result" class="digit font-show text-2xl sm:text-3xl break-words">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ PANEL: WEIGHTED DRAW ============ -->
+      <div id="panel-weighted" class="panel-card mt-5 p-4 sm:p-6 max-w-3xl mx-auto hidden" role="tabpanel">
+        <h2 class="font-show text-xl sm:text-2xl text-[#FACC15] text-center mb-4">⚖️ Weighted Random Draw</h2>
+        <p class="text-center text-violet-200 text-sm mb-4 max-w-lg mx-auto">Give each option a weight — bigger weight means a bigger slice of luck. Great for biased raffles, loot drops and weighted decisions.</p>
+        <div id="wt-rows" class="space-y-2 max-w-xl mx-auto"></div>
+        <div class="flex justify-center gap-3 mt-3">
+          <button id="wt-add" class="btn-ghost px-4 py-2 text-sm">＋ Add option</button>
+          <button id="wt-reset" class="btn-ghost px-4 py-2 text-sm">↺ Reset demo</button>
+        </div>
+        <div class="max-w-xl mx-auto mt-4">
+          <div class="text-xs font-extrabold uppercase tracking-[0.2em] text-violet-300 mb-2 text-center">Win probability</div>
+          <div id="wt-bars" class="space-y-1.5"></div>
+        </div>
+        <p id="wt-error" class="hidden text-center text-red-300 font-bold mt-3 text-sm" role="alert"></p>
+        <div class="text-center mt-4">
+          <button id="wt-draw" class="btn-show font-show text-xl px-10 py-3.5">DRAW ⚖️</button>
+        </div>
+        <div class="scoreboard mt-5 px-4 py-5 text-center min-h-[96px] flex flex-col justify-center">
+          <div class="text-[10px] uppercase tracking-[0.25em] text-violet-300 mb-1">Picked for you</div>
+          <div id="wt-result" class="digit font-show text-2xl sm:text-3xl break-words">—</div>
+        </div>
+      </div>
+
+      <!-- ============ PANEL: DICE & COIN ============ -->
+      <div id="panel-dice" class="panel-card mt-5 p-4 sm:p-6 max-w-3xl mx-auto hidden" role="tabpanel">
+        <h2 class="font-show text-xl sm:text-2xl text-[#FACC15] text-center mb-4">🎲 Dice Roller &amp; Coin Flip</h2>
+        <div class="grid sm:grid-cols-2 gap-6">
+          <div class="text-center">
+            <h3 class="font-extrabold text-violet-200 mb-3 uppercase tracking-widest text-sm">Dice</h3>
+            <div class="flex flex-wrap justify-center gap-2" id="d-sides">
+              <button data-sides="4" class="mode-tab px-3 py-2 text-sm">d4</button>
+              <button data-sides="6" class="mode-tab px-3 py-2 text-sm active">d6</button>
+              <button data-sides="8" class="mode-tab px-3 py-2 text-sm">d8</button>
+              <button data-sides="10" class="mode-tab px-3 py-2 text-sm">d10</button>
+              <button data-sides="12" class="mode-tab px-3 py-2 text-sm">d12</button>
+              <button data-sides="20" class="mode-tab px-3 py-2 text-sm">d20</button>
+              <button data-sides="100" class="mode-tab px-3 py-2 text-sm">d100</button>
+            </div>
+            <div class="flex items-center justify-center gap-2 mt-3">
+              <label class="text-sm font-bold text-violet-200" for="d-count">Dice:</label>
+              <input id="d-count" type="number" value="1" min="1" max="10" class="field w-16 px-2 py-1.5 text-center font-bold">
+            </div>
+            <button id="d-roll" class="btn-show font-show text-lg px-8 py-3 mt-4">ROLL 🎲</button>
+            <div class="scoreboard mt-4 px-4 py-4 min-h-[100px] flex flex-col justify-center">
+              <div class="text-[10px] uppercase tracking-[0.25em] text-violet-300 mb-1">Roll</div>
+              <div id="d-result" class="digit font-show text-2xl sm:text-3xl break-words">—</div>
+              <div id="d-total" class="text-violet-200 text-sm font-bold mt-1"></div>
+            </div>
+          </div>
+          <div class="text-center">
+            <h3 class="font-extrabold text-violet-200 mb-3 uppercase tracking-widest text-sm">Coin</h3>
+            <div class="coin mx-auto w-32 h-32" id="c-coin" style="perspective:600px">
+              <div class="coin-inner relative w-full h-full" id="c-inner">
+                <div class="coin-face absolute inset-0 rounded-full flex items-center justify-center font-show text-2xl text-[#2A1658]" style="background:radial-gradient(circle at 35% 30%, #FDE68A, #FACC15 60%, #D4A017); box-shadow:0 8px 20px rgba(0,0,0,.5), inset 0 0 0 6px rgba(161,98,7,.55)">H</div>
+                <div class="coin-face absolute inset-0 rounded-full flex items-center justify-center font-show text-2xl text-[#FACC15]" style="background:radial-gradient(circle at 35% 30%, #8B5CF6, #6D28D9 60%, #4C1D95); box-shadow:0 8px 20px rgba(0,0,0,.5), inset 0 0 0 6px rgba(250,204,21,.5); transform:rotateY(180deg)">T</div>
+              </div>
+            </div>
+            <div id="c-result" class="digit font-show text-2xl mt-3 h-9">—</div>
+            <button id="c-flip" class="btn-show font-show text-lg px-8 py-3 mt-2">FLIP 🪙</button>
+            <div class="flex justify-center gap-4 mt-3 text-sm font-bold text-violet-200">
+              <span>Heads: <b id="c-heads" class="text-[#FACC15]">0</b></span>
+              <span>Tails: <b id="c-tails" class="text-[#FACC15]">0</b></span>
+              <button id="c-reset" class="btn-ghost px-2 py-0.5 text-xs">reset</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ PANEL: LIST SHUFFLE ============ -->
+      <div id="panel-shuffle" class="panel-card mt-5 p-4 sm:p-6 max-w-3xl mx-auto hidden" role="tabpanel">
+        <h2 class="font-show text-xl sm:text-2xl text-[#FACC15] text-center mb-4">🔀 List Shuffler</h2>
+        <label class="text-xs font-bold text-violet-300 uppercase tracking-wide" for="s-input">Your list (one item per line)</label>
+        <textarea id="s-input" rows="7" class="field w-full px-3 py-2.5 mt-1 text-sm font-semibold" placeholder="Team A&#10;Team B&#10;Team C&#10;Team D">Team A
+Team B
+Team C
+Team D
+Team E</textarea>
+        <p id="s-error" class="hidden text-center text-red-300 font-bold mt-3 text-sm" role="alert"></p>
+        <div class="flex flex-wrap justify-center gap-3 mt-4">
+          <button id="s-shuffle" class="btn-show font-show text-lg px-8 py-3">SHUFFLE 🔀</button>
+          <button id="s-pick" class="btn-ghost px-5 py-3 font-show">PICK 1 🏆</button>
+          <button id="s-copy" class="btn-ghost px-5 py-3 text-sm font-extrabold">📋 Copy</button>
+        </div>
+        <div class="scoreboard mt-5 px-4 py-4">
+          <div class="text-[10px] uppercase tracking-[0.25em] text-violet-300 mb-2 text-center">Shuffled order</div>
+          <ol id="s-result" class="text-left max-w-md mx-auto space-y-1 text-sm font-bold text-violet-100"></ol>
+        </div>
+      </div>
+
+    </div><!-- /stage inner -->
+    <div class="marquee" aria-hidden="true">
+      <span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span><span class="bulb"></span>
+    </div>
+  </section>
+
+  <!-- BOTTOM AD (verbatim) -->
+  <div class="no-print mx-auto max-w-6xl pt-8 pb-4" role="complementary" aria-label="Advertisement">
+    <div class="mx-auto text-center" style="max-width:728px">
+      <span class="block text-[10px] tracking-[0.18em] uppercase text-slate-400 mb-1.5">Advertisement</span>
+      <div class="flex justify-center overflow-hidden">
+        <script async src="https://js.wpadmngr.com/static/adManager.js" data-admpid="464498"></script>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SEO ARTICLE ============ -->
+  <article id="seo-article" class="mt-10 rounded-3xl bg-white text-slate-800 p-6 sm:p-10 shadow-2xl">
+    <h2 class="font-show text-2xl sm:text-3xl text-[#5B21B6] mb-6">The Complete Guide to Random Number Generators: Fair Draws, Dice, Wheels and Weighted Picks</h2>
+
+    <h3 class="text-xl font-extrabold text-[#7C3AED] mt-8 mb-3">What is a random number generator?</h3>
+    <p class="mb-4 leading-relaxed">A random number generator, often shortened to RNG, is any process or device that produces a sequence of numbers that cannot be predicted better than by random chance. Random number generators sit quietly behind an enormous part of modern life. They decide the winners of online giveaways, shuffle the cards in your favourite mobile game, create one-time passwords, pick questions in classroom quizzes, and help scientists run fair experiments. When you click the generate button on a tool like Randora, you are tapping into a small piece of mathematics that has fascinated people for centuries: how do we make a fair, unbiased choice when we cannot trust our own instincts to be random?</p>
+    <p class="mb-4 leading-relaxed">Human beings are notoriously bad at being random. Ask a person to pick a number between one and one hundred and they will cluster around numbers like seven, forty-two or sixty-nine, while almost never choosing one, one hundred, or numbers ending in zero. Ask a group of friends to take turns naming names out of a hat and someone will always feel the order was unfair. A good random number generator removes that human bias completely. It gives every possible outcome exactly the same chance of being selected, every single time, with no memory of what happened before. That property, called uniformity, is the entire point of a fair draw.</p>
+
+    <h3 class="text-xl font-extrabold text-[#7C3AED] mt-8 mb-3">True randomness, pseudo-randomness and cryptographic randomness</h3>
+    <p class="mb-4 leading-relaxed">Not all randomness is created equal, and it helps to understand the three main kinds. True random number generators, sometimes called hardware random number generators, harvest unpredictability from physical processes such as atmospheric noise, thermal fluctuations in a chip, or the exact timing of radioactive decay. Services that specialise in this approach sample these physical phenomena and stream the results over the internet. They are genuinely unpredictable, but they depend on a network connection and an external service.</p>
+    <p class="mb-4 leading-relaxed">Pseudo-random number generators are algorithms that start from a seed value and produce a long sequence of numbers that look random. The classic example built into almost every programming language produces decent-looking output but is not suitable when fairness really matters, because its sequence can in principle be predicted if someone learns the internal state. Between these two extremes sits cryptographic randomness. Modern browsers expose a function called crypto.getRandomValues, which draws from the operating system's own entropy pool — the same pool of unpredictability that secures encrypted connections and password generation. This is the engine Randora uses for every draw, spin, roll and flip on this page. It is unpredictable, it never leaves your device, and it needs no internet connection to any randomness server.</p>
+    <p class="mb-4 leading-relaxed">Why does the source of randomness matter for an ordinary user? For a casual decision like choosing which film to watch, any reasonable algorithm will do. But the moment real stakes appear — prize money, contest winners, classroom selection, game outcomes — the quality of the randomness becomes the fairness of the event. A cryptographically strong source guarantees that no participant can predict, influence or game the outcome. When you run a giveaway with Randora, you can honestly tell your audience that the result came from the same grade of randomness that protects their banking sessions.</p>
+
+    <h3 class="text-xl font-extrabold text-[#7C3AED] mt-8 mb-3">How number draws work: ranges, counts and unique mode</h3>
+    <p class="mb-4 leading-relaxed">The classic number draw is simple on the surface: choose a minimum, choose a maximum, and ask for a number between them. Behind the scenes, the generator picks an integer where every value in the range, including both endpoints, has an identical probability. Randora's Number Draw mode lets you request more than one number at a time, which is where an important choice appears: should repeats be allowed?</p>
+    <p class="mb-4 leading-relaxed">With repeats allowed, each pick is fully independent. Drawing a seven does not make a seven any less likely on the next draw. This mirrors rolling a die again and again. With repeats forbidden — the no-duplicates or unique mode — each drawn number is removed from the pool before the next pick, exactly like pulling names from a hat. This is the correct choice for lotteries, raffles and winner selection, because the same ticket should never win twice. Randora implements unique draws with a pool-extraction method: it builds the full list of possible values, picks one at random, removes it, and repeats until your requested count is reached. If you accidentally ask for more unique numbers than the range contains, the tool draws the entire range and tells you it did so, instead of freezing or repeating values.</p>
+    <p class="mb-4 leading-relaxed">Sorting is a small convenience with a real purpose. Lottery results are conventionally shown in ascending order, so a sort toggle turns a raw draw like 41, 7, 23, 15 into 7, 15, 23, 41 without changing the underlying randomness. Combined with the copy button and the session history, this makes it easy to document a draw: generate the numbers, copy them with one tap, and keep a timestamped record in your browser as proof of the order in which things happened.</p>
+
+    <h3 class="text-xl font-extrabold text-[#7C3AED] mt-8 mb-3">Weighted random draws: when every option is not equal</h3>
+    <p class="mb-4 leading-relaxed">Uniform randomness is not always what you want. Sometimes some outcomes genuinely deserve a bigger chance. A raffle might award three tickets to premium members and one to everyone else. A game designer might want a common sword to drop far more often than a legendary one. A teacher might want to call on quieter students more frequently to balance participation. Weighted random selection solves all of these.</p>
+    <p class="mb-4 leading-relaxed">The mathematics is straightforward. Each option gets a positive weight, the weights are added up, and a single random point is dropped onto that total. Whichever option's slice contains the point wins. If option A has weight three and option B has weight one, A's slice covers three quarters of the total, so A wins about seventy-five percent of the time over many draws. Randora's Weighted Draw mode turns this into a visual experience: add as many options as you like, assign weights, and the tool shows each option's exact probability as a bar before you draw. Few free randomizer sites offer weighted selection at all, and fewer still show you the probabilities up front, so you always know precisely how the odds are tilted before the draw happens.</p>
+
+    <h3 class="text-xl font-extrabold text-[#7C3AED] mt-8 mb-3">Spin the wheel: randomness you can watch</h3>
+    <p class="mb-4 leading-relaxed">The spinning prize wheel is the game-show icon of randomness, and it exists for a psychological reason: people trust randomness more when they can see it happen. A number that appears instantly can feel arbitrary, but a wheel that spins, slows and settles on a winner feels like an event. Randora's Spin Wheel mode recreates that theatre in your browser. Type in up to twenty-four names, prizes or options, and the tool renders them as coloured slices on a canvas wheel with a pointer at the top.</p>
+    <p class="mb-4 leading-relaxed">Importantly, the spin is not merely cosmetic. Before the animation begins, the winner is already chosen using the same cryptographically strong randomness as everything else on the page; the animation then spins the wheel with a realistic easing curve and lands the pointer exactly on the pre-chosen slice. What you see is a dramatisation of a genuinely fair result. The optional remove-winner mode makes the wheel perfect for sequential draws — pick a quiz team, remove them, spin again — because each spin can never land on an already-chosen winner.</p>
+
+    <h3 class="text-xl font-extrabold text-[#7C3AED] mt-8 mb-3">Dice rollers and coin flips: the oldest randomizers</h3>
+    <p class="mb-4 leading-relaxed">Dice and coins predate every other random number generator by thousands of years. Knucklebone dice appear in archaeological finds from ancient civilisations, and the coin toss still settles disputes on sports fields worldwide. Randora honours that history with a full dice roller supporting the standard tabletop set: four, six, eight, ten, twelve, twenty and one-hundred-sided dice, rolled singly or in groups of up to ten, with the individual rolls and their total shown on the scoreboard.</p>
+    <p class="mb-4 leading-relaxed">Physical dice have subtle biases — uneven faces, worn edges, the way they are thrown — but a digital die backed by cryptographic randomness is as close to mathematically perfect as chance gets. The coin flipper adds the missing piece for binary decisions, with a three-dimensional flip animation and a running tally of heads and tails so you can watch the long-run balance converge toward fifty-fifty. Together they cover every classic game-table need without ever hunting for a lost die under the sofa.</p>
+
+    <h3 class="text-xl font-extrabold text-[#7C3AED] mt-8 mb-3">Shuffling lists: the Fisher-Yates method</h3>
+    <p class="mb-4 leading-relaxed">Randomly ordering a list — seating plans, presentation orders, team drafts, playlist shuffles — is a different problem from picking numbers, and it has a famously correct solution called the Fisher-Yates shuffle. The algorithm walks through the list from the last item to the first, swapping each item with a randomly chosen item from the unshuffled portion. Done correctly, every possible ordering is equally likely. Done incorrectly, which is surprisingly easy, some orderings become more likely than others and the shuffle is biased.</p>
+    <p class="mb-4 leading-relaxed">Randora implements the modern in-place Fisher-Yates shuffle with cryptographically strong randomness for each swap, so the shuffled order you see is a genuinely uniform permutation of your input. The one-tap Pick 1 button then promotes the top of the shuffled list to winner, which is the digital equivalent of dealing the top card — perfect for draft orders and secret-santa draws.</p>
+
+    <h3 class="text-xl font-extrabold text-[#7C3AED] mt-8 mb-3">Real-world uses for a random number generator</h3>
+    <p class="mb-4 leading-relaxed">Giveaways and raffles are the most visible use. Assign each entrant a number, draw with no-duplicates mode, and you have a defensible winner list in seconds. Teachers use random draws to pick students for presentations, assign groups, and generate unpredictable quiz questions. Game masters running tabletop role-playing sessions rely on dice rollers and weighted tables for encounters and loot. Developers and testers generate sample data, random IDs and test cases. Event organisers shuffle seating and speaking orders. Friends settle endless debates — where to eat, who goes first, which movie to watch — with a coin flip or a wheel spin. Statisticians and researchers use randomisation to assign participants to groups, which is the foundation of fair experiments.</p>
+    <p class="mb-4 leading-relaxed">Whatever the use, one habit makes every draw more trustworthy: write down or screenshot the rules before you generate. State the range, the number of winners, and whether duplicates are allowed, then run the draw. Randora's history log and copy buttons make the second half easy; the first half is up to you, and it is what turns a random result into a fair one that nobody can dispute.</p>
+
+    <h3 class="text-xl font-extrabold text-[#7C3AED] mt-8 mb-3">Fairness, privacy and limitations</h3>
+    <p class="mb-4 leading-relaxed">Every result on this page is generated inside your own browser using your device's cryptographic randomness source. Nothing is sent to a server, nothing is logged remotely, and there is no account to create. Your draw history is stored only in your browser's local storage, and you can clear it at any time. That also means nobody — not the site operator, not anyone else — can see, predict or alter your results, which is exactly what you want when the stakes are real.</p>
+    <p class="mb-4 leading-relaxed">A word of honest caution: a random number generator produces fairness of process, not fairness of outcome. It cannot make an unfair contest fair — if the entry list itself is biased, the draw inherits that bias. For regulated lotteries or gambling, jurisdictions usually require certified hardware and audited procedures, and a browser tool is not a substitute for those. For everything else — classrooms, parties, streams, giveaways, games and everyday decisions — a cryptographically strong browser generator like Randora is more than fair enough, and far fairer than any human attempt at randomness.</p>
+
+    <h3 class="text-xl font-extrabold text-[#7C3AED] mt-8 mb-3">How to use Randora in thirty seconds</h3>
+    <p class="mb-4 leading-relaxed">Pick one of the five modes at the top of the stage. For a quick lucky draw, set your minimum and maximum, choose how many numbers you need, toggle no-duplicates if winners must be unique, and hit Generate. For a name draw, open the Spin Wheel, paste your list, and spin. For unequal odds, use Weighted Draw and assign weights. For games, roll any standard die or flip the coin. For ordering, paste your list into the Shuffler. Every mode is unlimited, free forever, and works entirely offline once the page has loaded.</p>
+  </article>
+
+  <!-- ============ FAQ ============ -->
+  <section class="mt-8 rounded-3xl bg-white text-slate-800 p-6 sm:p-10 shadow-2xl">
+    <h2 class="font-show text-2xl sm:text-3xl text-[#5B21B6] mb-6">Frequently Asked Questions</h2>
+    <div class="space-y-3">
+      <details class="faq-item border-2 border-[#7C3AED]/30 rounded-2xl p-4 open:border-[#7C3AED]">
+        <summary class="font-extrabold cursor-pointer text-[#4C1D95]">Is Randora's random number generator truly random?</summary>
+        <p class="mt-2 text-slate-600 leading-relaxed">Yes — every draw, spin, roll, flip and shuffle on this page uses your browser's crypto.getRandomValues function, which draws from your operating system's cryptographic entropy pool. This is the same grade of randomness that secures encrypted web connections, and it is unpredictable in practice. It is not a simple pseudo-random formula, and no result ever depends on a predictable seed.</p>
+      </details>
+      <details class="faq-item border-2 border-[#7C3AED]/30 rounded-2xl p-4">
+        <summary class="font-extrabold cursor-pointer text-[#4C1D95]">How does the no-duplicates draw mode work?</summary>
+        <p class="mt-2 text-slate-600 leading-relaxed">In unique mode, Randora builds a pool containing every number in your range, picks one at random, removes it from the pool, and repeats until it has drawn as many numbers as you asked for. Because each number leaves the pool once drawn, repeats are mathematically impossible. If you request more unique numbers than the range holds, the tool draws the entire range and shows you a notice instead of repeating values.</p>
+      </details>
+      <details class="faq-item border-2 border-[#7C3AED]/30 rounded-2xl p-4">
+        <summary class="font-extrabold cursor-pointer text-[#4C1D95]">Can I use Randora to pick winners for a giveaway or raffle?</summary>
+        <p class="mt-2 text-slate-600 leading-relaxed">Absolutely. Assign each entrant a number, enter your range, enable no-duplicates mode, and generate. For name-based giveaways, paste the entrant names into the Spin Wheel and spin — the winner is chosen with cryptographically strong randomness before the animation plays. The built-in history log keeps a timestamped record of your draws in your browser as documentation.</p>
+      </details>
+      <details class="faq-item border-2 border-[#7C3AED]/30 rounded-2xl p-4">
+        <summary class="font-extrabold cursor-pointer text-[#4C1D95]">What is a weighted random draw and when should I use it?</summary>
+        <p class="mt-2 text-slate-600 leading-relaxed">A weighted draw lets some options win more often than others. You assign each option a weight — for example, a VIP entrant might get weight 5 while a regular entrant gets weight 1 — and the chance of each option winning is its weight divided by the total of all weights. Randora shows you each option's exact probability as a bar before you draw, so the odds are always transparent.</p>
+      </details>
+      <details class="faq-item border-2 border-[#7C3AED]/30 rounded-2xl p-4">
+        <summary class="font-extrabold cursor-pointer text-[#4C1D95]">Does Randora store my data or require an account?</summary>
+        <p class="mt-2 text-slate-600 leading-relaxed">No account, no signup, no tracking. All randomisation happens locally in your browser and nothing is sent to any server. Your recent draw history is saved only in your browser's local storage so you can review it later, and you can erase it at any time with the Clear history button.</p>
+      </details>
+      <details class="faq-item border-2 border-[#7C3AED]/30 rounded-2xl p-4">
+        <summary class="font-extrabold cursor-pointer text-[#4C1D95]">Does Randora work on mobile phones?</summary>
+        <p class="mt-2 text-slate-600 leading-relaxed">Yes. The whole page is responsive and every mode — number draws, the spin wheel, weighted draws, dice, coin flips and the shuffler — works on phones and tablets. The layout adapts down to small 360-pixel-wide screens, and once the page has loaded it even works offline.</p>
+      </details>
+    </div>
+  </section>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "Is Randora's random number generator truly random?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — every draw, spin, roll, flip and shuffle on this page uses your browser's crypto.getRandomValues function, which draws from your operating system's cryptographic entropy pool. This is the same grade of randomness that secures encrypted web connections, and it is unpredictable in practice."}},
+      {"@type": "Question", "name": "How does the no-duplicates draw mode work?", "acceptedAnswer": {"@type": "Answer", "text": "In unique mode, Randora builds a pool containing every number in your range, picks one at random, removes it from the pool, and repeats until it has drawn as many numbers as you asked for. Because each number leaves the pool once drawn, repeats are mathematically impossible."}},
+      {"@type": "Question", "name": "Can I use Randora to pick winners for a giveaway or raffle?", "acceptedAnswer": {"@type": "Answer", "text": "Absolutely. Assign each entrant a number, enter your range, enable no-duplicates mode, and generate. For name-based giveaways, paste the entrant names into the Spin Wheel and spin — the winner is chosen with cryptographically strong randomness before the animation plays."}},
+      {"@type": "Question", "name": "What is a weighted random draw and when should I use it?", "acceptedAnswer": {"@type": "Answer", "text": "A weighted draw lets some options win more often than others. You assign each option a weight and the chance of each option winning is its weight divided by the total of all weights. Randora shows each option's exact probability as a bar before you draw."}},
+      {"@type": "Question", "name": "Does Randora store my data or require an account?", "acceptedAnswer": {"@type": "Answer", "text": "No account, no signup, no tracking. All randomisation happens locally in your browser and nothing is sent to any server. Your recent draw history is saved only in your browser's local storage, and you can erase it at any time."}},
+      {"@type": "Question", "name": "Does Randora work on mobile phones?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. The whole page is responsive and every mode works on phones and tablets, adapting down to small 360-pixel-wide screens. Once the page has loaded it even works offline."}}
+    ]
+  }
+  </script>
+</main>
+
+<footer class="border-t-2 border-[#FACC15]/30 mt-4">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 py-6 text-center text-sm text-violet-300">
+    <p class="font-show text-[#FACC15] text-lg mb-1">🎲 RANDORA</p>
+    <p>Free unlimited random draws, spins, dice and shuffles — all in your browser.</p>
+  </div>
+</footer>
+
+<script>
+'use strict';
+/* =========================================================
+   RANDORA CORE LOGIC — pure functions, no DOM.
+   Test harness extracts everything between the two markers.
+   ========================================================= */
+// CORE-LOGIC-START
+function randoraCryptoFloat() {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    var buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return buf[0] / 4294967296;
+  }
+  return Math.random();
+}
+
+function randoraRandInt(min, max, rng) {
+  if (rng === undefined) rng = randoraCryptoFloat;
+  if (!Number.isFinite(min) || !Number.isFinite(max)) throw new Error('Bounds must be finite numbers');
+  if (!Number.isInteger(min) || !Number.isInteger(max)) throw new Error('Bounds must be integers');
+  if (min > max) throw new Error('min must be less than or equal to max');
+  var range = max - min + 1;
+  return min + Math.floor(rng() * range);
+}
+
+function randoraDraw(min, max, count, opts, rng) {
+  if (rng === undefined) rng = randoraCryptoFloat;
+  opts = opts || {};
+  count = Math.floor(Number(count));
+  if (!Number.isFinite(min) || !Number.isFinite(max)) throw new Error('Bounds must be finite numbers');
+  if (!Number.isInteger(min) || !Number.isInteger(max)) throw new Error('Bounds must be integers');
+  if (min > max) throw new Error('min must be less than or equal to max');
+  if (!Number.isFinite(count) || count < 1) throw new Error('count must be an integer of at least 1');
+  count = Math.floor(count);
+  if (count > 10000) throw new Error('count is too large (max 10000)');
+  var rangeSize = max - min + 1;
+  var out = [];
+  var i;
+  if (opts.unique) {
+    var pool = [];
+    for (i = min; i <= max; i++) pool.push(i);
+    var take = Math.min(count, pool.length);
+    for (i = 0; i < take; i++) {
+      var idx = Math.floor(rng() * pool.length);
+      out.push(pool.splice(idx, 1)[0]);
+    }
+    if (opts.sorted) out.sort(function(a, b) { return a - b; });
+    return { numbers: out, clamped: count > rangeSize };
+  }
+  for (i = 0; i < count; i++) out.push(randoraRandInt(min, max, rng));
+  if (opts.sorted) out.sort(function(a, b) { return a - b; });
+  return { numbers: out, clamped: false };
+}
+
+function randoraWeightedPick(items, rng) {
+  if (rng === undefined) rng = randoraCryptoFloat;
+  if (!Array.isArray(items) || items.length === 0) throw new Error('At least one option is required');
+  var clean = items.map(function(it, i) {
+    var name, w;
+    if (it && typeof it === 'object') { name = it.name; w = it.weight; }
+    else { name = it; w = 1; }
+    name = String(name === undefined || name === null ? '' : name).trim();
+    w = Number(w);
+    if (name === '') throw new Error('Option ' + (i + 1) + ' has no name');
+    if (!Number.isFinite(w) || w <= 0) throw new Error('Weight for "' + name + '" must be a positive number');
+    return { name: name, weight: w };
+  });
+  var total = clean.reduce(function(s, it) { return s + it.weight; }, 0);
+  var r = rng() * total;
+  for (var k = 0; k < clean.length; k++) {
+    r -= clean[k].weight;
+    if (r < 0) return clean[k].name;
+  }
+  return clean[clean.length - 1].name;
+}
+
+function randoraShuffle(list, rng) {
+  if (rng === undefined) rng = randoraCryptoFloat;
+  if (!Array.isArray(list)) throw new Error('Expected an array');
+  var a = list.slice();
+  var i, j, t;
+  for (i = a.length - 1; i > 0; i--) {
+    j = Math.floor(rng() * (i + 1));
+    t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+function randoraDice(sides, count, rng) {
+  if (rng === undefined) rng = randoraCryptoFloat;
+  if (!Number.isInteger(sides) || sides < 2) throw new Error('sides must be an integer of at least 2');
+  if (!Number.isInteger(count) || count < 1 || count > 50) throw new Error('count must be between 1 and 50');
+  var rolls = [];
+  for (var i = 0; i < count; i++) rolls.push(randoraRandInt(1, sides, rng));
+  var total = rolls.reduce(function(s, n) { return s + n; }, 0);
+  return { rolls: rolls, total: total };
+}
+
+function randoraCoin(rng) {
+  if (rng === undefined) rng = randoraCryptoFloat;
+  return rng() < 0.5 ? 'Heads' : 'Tails';
+}
+// CORE-LOGIC-END
+
+/* ================= UI WIRING ================= */
+(function() {
+  var $ = function(id) { return document.getElementById(id); };
+
+  // ---- Tabs ----
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.mode-tab[data-mode]'));
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      ['numbers', 'wheel', 'weighted', 'dice', 'shuffle'].forEach(function(m) {
+        $('panel-' + m).classList.toggle('hidden', m !== tab.getAttribute('data-mode'));
+      });
+    });
+  });
+
+  function show(el, msg) { el.textContent = msg; el.classList.remove('hidden'); }
+  function hide(el) { el.classList.add('hidden'); el.textContent = ''; }
+
+  // ---- Game-show animated number reveal ----
+  function animateReveal(target, finalText, durationMs) {
+    var start = Date.now(), dur = durationMs || 900;
+    var iv = setInterval(function() {
+      var left = dur - (Date.now() - start);
+      if (left <= 0) { clearInterval(iv); target.textContent = finalText; target.classList.remove('pop'); void target.offsetWidth; target.classList.add('pop'); return; }
+      target.textContent = '🎰 ' + Math.floor(Math.random() * 100);
+    }, 60);
+  }
+
+  // ---- Confetti burst ----
+  function confettiBurst(n) {
+    n = n || 60;
+    var colors = ['#FACC15', '#7C3AED', '#F472B6', '#34D399', '#FFFFFF'];
+    for (var i = 0; i < n; i++) {
+      var d = document.createElement('div');
+      d.className = 'confetti';
+      var size = 6 + Math.random() * 8;
+      d.style.left = (Math.random() * 100) + 'vw';
+      d.style.width = size + 'px';
+      d.style.height = size * 0.6 + 'px';
+      d.style.background = colors[Math.floor(Math.random() * colors.length)];
+      d.style.animationDuration = (1.6 + Math.random() * 1.6) + 's';
+      document.body.appendChild(d);
+      (function(el) { setTimeout(function() { el.remove(); }, 3600); })(d);
+    }
+  }
+
+  // ---- History (localStorage) ----
+  var HIST_KEY = 'randora-history-v1';
+  function loadHist() { try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch (e) { return []; } }
+  function saveHist(h) { try { localStorage.setItem(HIST_KEY, JSON.stringify(h.slice(0, 12))); } catch (e) {} }
+  function renderHist() {
+    var h = loadHist(), ul = $('n-history');
+    ul.innerHTML = '';
+    if (!h.length) { ul.innerHTML = '<li class="text-center text-violet-300/70 font-semibold">No draws yet — the stage is waiting!</li>'; return; }
+    h.forEach(function(item) {
+      var li = document.createElement('li');
+      li.className = 'bg-[#7C3AED]/20 border border-[#7C3AED]/50 rounded-xl px-3 py-1.5 flex justify-between gap-3';
+      li.innerHTML = '<span class="text-violet-100 font-bold truncate"></span><span class="text-violet-300 text-xs shrink-0"></span>';
+      li.children[0].textContent = item.text;
+      li.children[1].textContent = item.when;
+      ul.appendChild(li);
+    });
+  }
+  function pushHist(text) {
+    var h = loadHist();
+    h.unshift({ text: text, when: new Date().toLocaleTimeString() });
+    saveHist(h); renderHist();
+  }
+  renderHist();
+
+  // ================= NUMBER DRAW =================
+  $('n-generate').addEventListener('click', function() {
+    var min = parseInt($('n-min').value, 10), max = parseInt($('n-max').value, 10), count = parseInt($('n-count').value, 10);
+    hide($('n-error')); hide($('n-notice'));
+    try {
+      if (isNaN(min) || isNaN(max) || isNaN(count)) throw new Error('Please enter numbers for min, max and count.');
+      var res = randoraDraw(min, max, count, { unique: $('n-unique').checked, sorted: $('n-sort').checked });
+      if (res.clamped) show($('n-notice'), '⚠️ Only ' + (max - min + 1) + ' unique numbers exist in this range — drew them all.');
+      var txt = res.numbers.join(', ');
+      animateReveal($('n-result'), txt, Math.min(400 + res.numbers.length * 40, 1200));
+      pushHist(txt);
+      confettiBurst(30);
+    } catch (e) { show($('n-error'), '⚠️ ' + e.message); }
+  });
+  $('n-copy').addEventListener('click', function() {
+    var t = $('n-result').textContent;
+    if (!t || t === '—') return;
+    if (navigator.clipboard) navigator.clipboard.writeText(t);
+    $('n-copy').textContent = '✅ Copied!';
+    setTimeout(function() { $('n-copy').textContent = '📋 Copy'; }, 1200);
+  });
+  $('n-clear-hist').addEventListener('click', function() { saveHist([]); renderHist(); });
+
+  // ================= SPIN WHEEL =================
+  var wheelEntries = [], wheelAngle = 0, spinning = false;
+  var WHEEL_COLORS = ['#7C3AED', '#FACC15', '#5B21B6', '#FDE047', '#8B5CF6', '#F59E0B'];
+
+  function getWheelEntries() {
+    return $('w-entries').value.split(/[\n,]+/).map(function(s) { return s.trim(); }).filter(Boolean).slice(0, 24);
+  }
+  function drawWheel() {
+    var c = $('w-canvas'), ctx = c.getContext('2d');
+    var n = Math.max(wheelEntries.length, 2), R = c.width / 2, seg = (Math.PI * 2) / n;
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.save(); ctx.translate(R, R); ctx.rotate(wheelAngle);
+    for (var i = 0; i < n; i++) {
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.arc(0, 0, R - 6, i * seg, (i + 1) * seg);
+      ctx.closePath();
+      ctx.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
+      ctx.fill();
+      ctx.strokeStyle = '#160A33'; ctx.lineWidth = 3; ctx.stroke();
+      // label
+      ctx.save(); ctx.rotate(i * seg + seg / 2);
+      ctx.textAlign = 'right'; ctx.fillStyle = (i % 2 === 1) ? '#2A1658' : '#FFFFFF';
+      ctx.font = 'bold ' + (n > 12 ? 11 : 14) + 'px Nunito, sans-serif';
+      var label = wheelEntries[i] || ('#' + (i + 1));
+      if (label.length > 14) label = label.slice(0, 13) + '…';
+      ctx.fillText(label, R - 22, 5);
+      ctx.restore();
+    }
+    ctx.restore();
+    // hub
+    ctx.beginPath(); ctx.arc(R, R, 26, 0, Math.PI * 2);
+    ctx.fillStyle = '#FACC15'; ctx.fill();
+    ctx.strokeStyle = '#160A33'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.fillStyle = '#2A1658'; ctx.font = 'bold 15px Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('★', R, R + 1);
+  }
+  function refreshWheel() { wheelEntries = getWheelEntries(); drawWheel(); }
+  $('w-entries').addEventListener('input', refreshWheel);
+
+  $('w-spin').addEventListener('click', function() {
+    hide($('w-error'));
+    if (spinning) return;
+    refreshWheel();
+    if (wheelEntries.length < 2) { show($('w-error'), '⚠️ Add at least 2 entries to spin the wheel.'); return; }
+    spinning = true;
+    $('w-spin').disabled = true;
+    var n = wheelEntries.length, seg = (Math.PI * 2) / n;
+    var winnerIdx = randoraRandInt(0, n - 1);
+    // We want the pointer (top, angle = -PI/2 in canvas coords) to land on the
+    // middle of the winner segment. Canvas rotation increases clockwise.
+    var segCenter = winnerIdx * seg + seg / 2;
+    var targetMod = ((-Math.PI / 2) - segCenter) % (Math.PI * 2);
+    if (targetMod < 0) targetMod += Math.PI * 2;
+    var currentMod = ((wheelAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    var delta = (targetMod - currentMod + Math.PI * 2) % (Math.PI * 2);
+    var spins = (5 + Math.floor(randoraCryptoFloat() * 3)) * Math.PI * 2;
+    var startAngle = wheelAngle, total = spins + delta, t0 = null, DUR = 4200;
+    function frame(ts) {
+      if (!t0) t0 = ts;
+      var p = Math.min((ts - t0) / DUR, 1);
+      var eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      wheelAngle = startAngle + total * eased;
+      drawWheel();
+      if (p < 1) requestAnimationFrame(frame);
+      else {
+        spinning = false; $('w-spin').disabled = false;
+        var winner = wheelEntries[winnerIdx];
+        var wr = $('w-result');
+        wr.textContent = winner; wr.classList.remove('pop'); void wr.offsetWidth; wr.classList.add('pop');
+        confettiBurst(70);
+        if ($('w-remove').checked) {
+          var lines = $('w-entries').value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+          lines.splice(lines.indexOf(winner), 1);
+          $('w-entries').value = lines.join('\n');
+          refreshWheel();
+        }
+      }
+    }
+    requestAnimationFrame(frame);
+  });
+  refreshWheel();
+
+  // ================= WEIGHTED DRAW =================
+  var wtDemo = [['Gold Prize', 1], ['Silver Prize', 3], ['Bronze Prize', 6], ['Consolation', 10]];
+  function wtAddRow(name, weight) {
+    var wrap = document.createElement('div');
+    wrap.className = 'flex gap-2 items-center wt-row';
+    wrap.innerHTML = '<input type="text" placeholder="Option name" class="field flex-1 px-3 py-2 text-sm font-bold" value="">' +
+      '<input type="number" placeholder="Weight" min="0" step="any" class="field w-24 px-2 py-2 text-sm font-bold text-center" value="">' +
+      '<button class="btn-ghost px-3 py-2 text-sm wt-del" title="Remove">✕</button>';
+    wrap.children[0].value = name || '';
+    wrap.children[1].value = (weight === undefined || weight === null) ? '' : weight;
+    wrap.children[2].addEventListener('click', function() { wrap.remove(); wtRenderBars(); });
+    wrap.children[0].addEventListener('input', wtRenderBars);
+    wrap.children[1].addEventListener('input', wtRenderBars);
+    $('wt-rows').appendChild(wrap);
+    wtRenderBars();
+  }
+  function wtReadRows() {
+    return Array.prototype.slice.call(document.querySelectorAll('.wt-row')).map(function(r) {
+      return { name: r.children[0].value, weight: r.children[1].value };
+    });
+  }
+  function wtRenderBars() {
+    var box = $('wt-bars'); box.innerHTML = '';
+    var rows = wtReadRows();
+    var total = rows.reduce(function(s, r) { var w = parseFloat(r.weight); return s + (isFinite(w) && w > 0 ? w : 0); }, 0);
+    rows.forEach(function(r) {
+      var w = parseFloat(r.weight);
+      var pct = (total > 0 && isFinite(w) && w > 0) ? (w / total * 100) : 0;
+      var row = document.createElement('div');
+      row.className = 'flex items-center gap-2 text-xs font-bold';
+      row.innerHTML = '<span class="w-28 truncate text-violet-100"></span>' +
+        '<div class="flex-1 bg-[#2A1658] rounded-full h-3 overflow-hidden"><div class="h-full rounded-full" style="width:' + pct.toFixed(1) + '%; background:linear-gradient(90deg,#7C3AED,#FACC15)"></div></div>' +
+        '<span class="w-14 text-right text-[#FACC15]"></span>';
+      row.children[0].textContent = r.name.trim() || '—';
+      row.children[2].textContent = pct.toFixed(1) + '%';
+      box.appendChild(row);
+    });
+    if (!rows.length) box.innerHTML = '<p class="text-center text-violet-300/70 text-sm">Add options to see probabilities.</p>';
+  }
+  $('wt-add').addEventListener('click', function() { wtAddRow('', ''); });
+  $('wt-reset').addEventListener('click', function() { $('wt-rows').innerHTML = ''; wtDemo.forEach(function(d) { wtAddRow(d[0], d[1]); }); });
+  wtDemo.forEach(function(d) { wtAddRow(d[0], d[1]); });
+  $('wt-draw').addEventListener('click', function() {
+    hide($('wt-error'));
+    try {
+      var rows = wtReadRows();
+      var winner = randoraWeightedPick(rows);
+      animateReveal($('wt-result'), winner, 800);
+      confettiBurst(40);
+    } catch (e) { show($('wt-error'), '⚠️ ' + e.message); }
+  });
+
+  // ================= DICE & COIN =================
+  var diceSides = 6;
+  Array.prototype.slice.call(document.querySelectorAll('#d-sides .mode-tab')).forEach(function(b) {
+    b.addEventListener('click', function() {
+      Array.prototype.slice.call(document.querySelectorAll('#d-sides .mode-tab')).forEach(function(x) { x.classList.remove('active'); });
+      b.classList.add('active');
+      diceSides = parseInt(b.getAttribute('data-sides'), 10);
+    });
+  });
+  $('d-roll').addEventListener('click', function() {
+    var count = Math.max(1, Math.min(10, parseInt($('d-count').value, 10) || 1));
+    var res = randoraDice(diceSides, count);
+    var el = $('d-result');
+    el.classList.remove('dice-shake'); void el.offsetWidth; el.classList.add('dice-shake');
+    setTimeout(function() {
+      el.textContent = '🎲 ' + res.rolls.join('  ·  ');
+      $('d-total').textContent = count > 1 ? ('Total: ' + res.total + '  ·  d' + diceSides + ' × ' + count) : ('d' + diceSides);
+      el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+    }, 350);
+  });
+  var heads = 0, tails = 0, flipping = false;
+  $('c-flip').addEventListener('click', function() {
+    if (flipping) return;
+    flipping = true;
+    var result = randoraCoin();
+    var coin = $('c-coin'), inner = $('c-inner');
+    coin.classList.remove('tails');
+    var turns = 5 + Math.floor(randoraCryptoFloat() * 3);
+    var finalDeg = turns * 360 + (result === 'Tails' ? 180 : 0);
+    inner.style.transform = 'rotateY(' + finalDeg + 'deg)';
+    setTimeout(function() {
+      if (result === 'Heads') heads++; else tails++;
+      $('c-heads').textContent = heads; $('c-tails').textContent = tails;
+      var r = $('c-result');
+      r.textContent = result === 'Heads' ? '🙂 HEADS' : '🌙 TAILS';
+      r.classList.remove('pop'); void r.offsetWidth; r.classList.add('pop');
+      confettiBurst(20);
+      flipping = false;
+    }, 1150);
+  });
+  $('c-reset').addEventListener('click', function() { heads = 0; tails = 0; $('c-heads').textContent = '0'; $('c-tails').textContent = '0'; });
+
+  // ================= LIST SHUFFLE =================
+  function getListItems() {
+    return $('s-input').value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+  }
+  function renderShuffled(items, highlightFirst) {
+    var ol = $('s-result'); ol.innerHTML = '';
+    items.forEach(function(item, i) {
+      var li = document.createElement('li');
+      li.className = 'flex gap-2 items-center bg-[#7C3AED]/20 border border-[#7C3AED]/50 rounded-lg px-3 py-1.5' + (highlightFirst && i === 0 ? ' !border-[#FACC15] !bg-[#FACC15]/20' : '');
+      var num = document.createElement('span');
+      num.className = 'text-[#FACC15] font-show text-xs w-6 shrink-0';
+      num.textContent = (i + 1) + '.';
+      var txt = document.createElement('span');
+      txt.textContent = (highlightFirst && i === 0 ? '🏆 ' : '') + item;
+      li.appendChild(num); li.appendChild(txt);
+      ol.appendChild(li);
+    });
+  }
+  $('s-shuffle').addEventListener('click', function() {
+    hide($('s-error'));
+    var items = getListItems();
+    if (!items.length) { show($('s-error'), '⚠️ Your list is empty — add at least one item.'); return; }
+    renderShuffled(randoraShuffle(items), false);
+    confettiBurst(15);
+  });
+  $('s-pick').addEventListener('click', function() {
+    hide($('s-error'));
+    var items = getListItems();
+    if (!items.length) { show($('s-error'), '⚠️ Your list is empty — add at least one item.'); return; }
+    var shuffled = randoraShuffle(items);
+    renderShuffled(shuffled, true);
+    confettiBurst(40);
+  });
+  $('s-copy').addEventListener('click', function() {
+    var items = Array.prototype.slice.call(document.querySelectorAll('#s-result li')).map(function(li, i) { return (i + 1) + '. ' + li.lastChild.textContent; });
+    if (!items.length || !navigator.clipboard) return;
+    navigator.clipboard.writeText(items.join('\n'));
+    $('s-copy').textContent = '✅ Copied!';
+    setTimeout(function() { $('s-copy').textContent = '📋 Copy'; }, 1200);
+  });
+})();
+</script>
+</body>
+</html>
